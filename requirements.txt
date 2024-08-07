@@ -90,6 +90,7 @@ fastjsonschema @ file:///Users/cbousseau/work/recipes/ci_py311_2/python-fastjson
 filelock @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_d3quwmvouf/croot/filelock_1700591194006/work
 flake8 @ file:///Users/cbousseau/work/recipes/ci_py311/flake8_1677931981927/work
 Flask @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_b4a2svwk0s/croot/flask_1702980026964/work
+Flask-Cors==4.0.1
 fonttools==4.25.0
 frozenlist @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_68w5bkvw82/croot/frozenlist_1698702578544/work
 fsspec @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_c7sublivu7/croot/fsspec_1701286493452/work

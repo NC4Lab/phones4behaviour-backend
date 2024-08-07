@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import shutil
 
 app = Flask(__name__)
 CORS(app)
@@ -45,18 +46,40 @@ def get_files():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
     
+# @app.route('/display', methods=['POST'])
+# def post_display_files():
+#     try:
+#         files = request.files
+#         saved_files = {}
+
+#         for file_key in files:
+#             file = files[file_key]
+#             if file:
+#                 file_path = os.path.join(app.config['DISPLAY_FOLDER'], file.filename)
+#                 file.save(file_path)
+#                 saved_files[file_key] = file_path
+
+#         response_data = {
+#             "status": "success",
+#             "saved_files": saved_files
+#         }
+#         return jsonify(response_data), 200
+#     except Exception as e:
+#         return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/display', methods=['POST'])
 def post_display_files():
     try:
-        files = request.files
+        data = request.json
+        selected_files = data.get('files', [])
         saved_files = {}
 
-        for file_key in files:
-            file = files[file_key]
-            if file:
-                file_path = os.path.join(app.config['DISPLAY_FOLDER'], file.filename)
-                file.save(file_path)
-                saved_files[file_key] = file_path
+        for filename in selected_files:
+            src_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            dest_path = os.path.join(app.config['DISPLAY_FOLDER'], filename)
+            if os.path.exists(src_path):
+                shutil.copy(src_path, dest_path)
+                saved_files[filename] = dest_path
 
         response_data = {
             "status": "success",
@@ -65,7 +88,6 @@ def post_display_files():
         return jsonify(response_data), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 @app.route('/')
 def index():

@@ -3,10 +3,12 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import os
 import shutil
+import mimetypes
 
 app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -33,7 +35,11 @@ def post_files():
             if file:
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
                 file.save(file_path)
-                saved_files[file_key] = file_path
+                filetype = file.mimetype
+                saved_files[file_key] = {
+                        "filepath": file_path,
+                        "filetype": filetype 
+                    }
 
         response_data = {
             "status": "success",
@@ -47,11 +53,21 @@ def post_files():
 def get_files():
     try:
         files = os.listdir(app.config['UPLOAD_FOLDER'])
-        file_info = [{"filename": file, "filepath": os.path.join(app.config['UPLOAD_FOLDER'], file)} for file in files]
+        file_info = []
+
+        for file in files:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file)
+            filetype = mimetypes.guess_type(file_path)
+            file_info.append({
+                "filename": file,
+                "filepath": file_path,
+                "filetype": filetype
+            })
 
         return jsonify(file_info), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/display', methods=['POST'])
 def post_display_files():
@@ -70,7 +86,11 @@ def post_display_files():
             dest_path = os.path.join(app.config['DISPLAY_FOLDER'], filename)
             if os.path.exists(src_path):
                 shutil.copy(src_path, dest_path)
-                saved_files[filename] = dest_path
+                filetype, _ = mimetypes.guess_type(filename)
+                saved_files[filename] = {
+                    "filepath": dest_path,
+                    "filetype": filetype
+                }
 
         socketio.emit('new_file', {'files': selected_files})
 
@@ -86,8 +106,16 @@ def post_display_files():
 def get_display_files():
     try:
         files = os.listdir(app.config['DISPLAY_FOLDER'])
-        file_info = [{"filename": file, "fileurl": f"/display/{file}"} for file in files]
+        file_info = []
 
+        for file in files:
+            file_path = os.path.join(app.config['DISPLAY_FOLDER'], file)
+            mime_type, _ = mimetypes.guess_type(file) 
+            file_info.append({
+                "filename": file,
+                "filepath": file_path,
+                "filetype": mime_type
+            })
         return jsonify(file_info), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

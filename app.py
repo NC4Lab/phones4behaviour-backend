@@ -89,7 +89,7 @@ def get_files():
             for entry in uploads_json:
                 if entry['file_name'] == file:
                     file_info = {
-                        'file_name': entry.get('fileName', 'unknown'),
+                        'file_name': entry.get('file_name', 'unknown'),
                         'file_path': entry.get('file_path', 'unknown'),
                         'file_type': entry.get('file_type', 'unknown'),
                         'upload_time': entry.get('upload_time', 'unknown')

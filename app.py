@@ -53,7 +53,7 @@ def post_files():
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
                 file.save(file_path)
                 saved_files[file_key] = {
-                    "file_path": file_path,
+                    "file_path": f"/uploads/{file.filename}",
                     "file_type": file_type,
                     "upload_time": upload_time,
                 }
@@ -134,6 +134,7 @@ def post_display_files():
                     "display_time": display_time
                 }
 
+
         socketio.emit('new_file', {'files': selected_files})
 
         response_data = {
@@ -151,13 +152,14 @@ def get_display_files():
         file_info = []
 
         for file in files:
-            file_path = os.path.join(app.config['DISPLAY_FOLDER'], file)
+            # file_path = os.path.join(app.config['DISPLAY_FOLDER'], file)
             file_type, _ = mimetypes.guess_type(file) 
             file_info.append({
                 "file_name": file,
-                "file_path": file_path,
+                "file_path": f"/uploads/display/{file}",
                 "file_type": file_type
             })
+
         return jsonify(file_info), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -187,6 +189,8 @@ def post_logs():
         with open(LOG_JSON, 'w') as f:
             json.dump(logs_json, f)
 
+        socketio.emit('new_log', {'logs': new_log})
+
         response_data = {
             "status": "success",
             "saved_files": new_log
@@ -206,23 +210,9 @@ def get_logs():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# @app.route('/')
-# def index():
-#     try:
-#         upload_files = os.listdir(app.config['UPLOAD_FOLDER'])
-#         upload_file_info = [{"filename": file, "filepath": os.path.join(app.config['UPLOAD_FOLDER'], file)} for file in upload_files]
-
-#         display_files = os.listdir(app.config['DISPLAY_FOLDER'])
-#         display_file_info = [{"filename": file, "filepath": os.path.join(app.config['DISPLAY_FOLDER'], file)} for file in display_files]
-
-#         all_files_info = {
-#             "uploaded_files": upload_file_info,
-#             "display_files": display_file_info
-#         }
-
-#         return jsonify(all_files_info), 200
-#     except Exception as e:
-#         return jsonify({"status": "error", "message": str(e)}), 500
+@app.route('/')
+def index():
+    return "<a href='/uploads'>http://127.0.0.1:5000/uploads</a><br><a href='/uploads/display'>http://127.0.0.1:5000/uploads/display</a><br><a href='/logs'>http://127.0.0.1:5000/logs</a>"
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=5000)

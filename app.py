@@ -123,15 +123,28 @@ def serve_upload_file(filename):
 @app.route('/uploads/display', methods=['POST'])
 def post_display_files():
     try:
-        open(DISPLAY_JSON, 'w').close()
+        # print('request', request.json['files'][0]['deviceId'])
+        with open(DISPLAY_JSON, 'r') as f:
+            display_json = json.load(f)
 
+        device_id = request.json['files'][0]['deviceId']
         new_display = request.json.get('files', [])
-        print(new_display)
-        if new_display:
-            with open(DISPLAY_JSON, 'w') as f:
-                json.dump(new_display, f)
-                # display_json = json.load(f)
+        print(device_id)
 
+        device_entry = next((entry for entry in display_json if entry['device_id'] == device_id), None)
+
+        if device_entry is None:
+            device_entry = {
+                "device_id": device_id,
+                "display": []
+            }
+            display_json.append(device_entry)
+
+        for file in new_display:
+            device_entry['display'].append(file)
+
+        with open(DISPLAY_JSON, 'w') as f:
+            json.dump(display_json, f, indent=4)
 
         for file_name in os.listdir(app.config['DISPLAY_FOLDER']):
             file_path = os.path.join(app.config['DISPLAY_FOLDER'], file_name)
@@ -158,15 +171,6 @@ def post_display_files():
                     "device_id": device_id
                 }
 
-        # temp_file = DISPLAY_JSON + '.tmp'
-        # with open(temp_file, 'w') as f:
-        #     json.dump(display_json, f)
-        # os.replace(temp_file, DISPLAY_JSON)
-
-        # with open(DISPLAY_JSON, 'w') as f:
-        #     json.dump(display_json, f)
-
-
         socketio.emit('new_file', {'files': new_display})
 
         response_data = {
@@ -176,32 +180,43 @@ def post_display_files():
         return jsonify(response_data), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
+    
 @app.route('/uploads/display', methods=['GET'])
 def get_display_files():
     try:
+        device_id = request.args.get('deviceId')
+        # print(device_id)
+
         with open(DISPLAY_JSON, 'r') as f:
             display_json = json.load(f)
 
-        print(display_json)
-
         file_info = []
-        for file in display_json:
-            file_name = file.get('fileName')
-            file_path = f"/uploads/display/{file_name}"
-            file_type, _ = mimetypes.guess_type(file_path)
-            
-            file_info.append({
-                "file_name": file_name,
-                "file_path": file_path,
-                "file_type": file_type,
-                "timestamp": file.get('displayTime'),
-                "device_id": file.get('deviceId')
-            })
+        
+        if device_id is not None:
+            device_display_files = [entry['display'] for entry in display_json if entry['device_id'] == device_id]
+
+            for x in device_display_files:
+                for file in x:
+                    print(file)
+                    file_name = file.get('fileName')
+                    file_path = f"/uploads/display/{file_name}"
+                    file_type, _ = mimetypes.guess_type(file_path)
+
+                    file_info.append({
+                        "file_name": file_name,
+                        "file_path": file_path,
+                        "file_type": file_type,
+                        "timestamp": file.get('displayTime'),
+                        "device_id": file.get('deviceId')
+                    })
+        else:
+            with open(DISPLAY_JSON, 'r') as f:
+                file_info = json.load(f)
 
         return jsonify(file_info), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
     
 @app.route('/uploads/display/<filename>', methods=['GET'])
@@ -252,7 +267,6 @@ def get_logs():
 @app.route('/devices', methods=['POST'])
 def post_device():
     try:
-        
         with open(DEVICES_JSON, 'r') as f:
             devices_json = json.load(f)
 
@@ -261,13 +275,26 @@ def post_device():
         if new_device and not any(device['id'] == new_device['id'] for device in devices_json):
             devices_json.append(new_device)
 
-
-        temp_file = DEVICES_JSON + '.tmp'
-        with open(temp_file, 'w') as f:
+        temp_devices_file = DEVICES_JSON + '.tmp'
+        with open(temp_devices_file, 'w') as f:
             json.dump(devices_json, f)
-        os.replace(temp_file, DEVICES_JSON)
+        os.replace(temp_devices_file, DEVICES_JSON)
 
-        
+
+        with open(DISPLAY_JSON, 'r') as f:
+            display_json = json.load(f)
+
+        if new_device and not any(device['device_id'] == new_device['id'] for device in display_json):
+            display_json.append({
+                'device_id': new_device['id'],
+                'display': []
+            })
+
+        temp_display_file = DISPLAY_JSON + '.tmp'
+        with open(temp_display_file, 'w') as f:
+            json.dump(display_json, f)
+        os.replace(temp_display_file, DISPLAY_JSON)
+
         socketio.emit('new_device', {'devices': new_device})
 
         response_data = {

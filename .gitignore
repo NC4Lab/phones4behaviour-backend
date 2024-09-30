@@ -2,6 +2,6 @@ venv
 .env
 stream/
 uploads/
+frames/
 devices.json
 logs.json
-frames/

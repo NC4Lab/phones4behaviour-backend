@@ -1,2 +1,7 @@
 venv
 .env
+stream/
+uploads/
+devices.json
+logs.json
+frames/

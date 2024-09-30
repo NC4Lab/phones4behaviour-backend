@@ -11,12 +11,6 @@ CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-@socketio.on('connect')
-def handle_connect():
-    print('Client connected')
-
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -33,6 +27,24 @@ app.config['DISPLAY_JSON'] = DISPLAY_JSON
 
 LOG_JSON = 'logs.json'
 app.config['LOG_JSON'] = LOG_JSON
+
+DEVICES_JSON = 'devices.json'
+app.config['DEVICES_JSON'] = DEVICES_JSON
+
+FRAMES_FOLDER = 'frames'
+os.makedirs(FRAMES_FOLDER, exist_ok=True)
+app.config['FRAMES_FOLDER'] = FRAMES_FOLDER
+
+FRAMES_JSON = 'frames/frames.json'
+app.config['FRAMES_FOLDER'] = FRAMES_JSON
+
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'}
+
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
 
 @app.route('/uploads', methods=['POST'])
 def post_files():
@@ -111,18 +123,29 @@ def serve_upload_file(filename):
 @app.route('/uploads/display', methods=['POST'])
 def post_display_files():
     try:
+        open(DISPLAY_JSON, 'w').close()
+
+        new_display = request.json.get('files', [])
+        print(new_display)
+        if new_display:
+            with open(DISPLAY_JSON, 'w') as f:
+                json.dump(new_display, f)
+                # display_json = json.load(f)
+
+
         for file_name in os.listdir(app.config['DISPLAY_FOLDER']):
             file_path = os.path.join(app.config['DISPLAY_FOLDER'], file_name)
-            if os.path.isfile(file_path):
-                os.unlink(file_path)
+            file_ext = os.path.splitext(file_name)[1].lower()
+            if file_ext in IMAGE_EXTENSIONS:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
 
-        data = request.json
-        selected_files = data.get('files', [])
         saved_files = {}
 
-        for file in selected_files:
+        for file in new_display:
             file_name = file.get('fileName')
             display_time = file.get('displayTime')
+            device_id = file.get('deviceId')
             src_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
             dest_path = os.path.join(app.config['DISPLAY_FOLDER'], file_name)
             if os.path.exists(src_path):
@@ -131,11 +154,20 @@ def post_display_files():
                 saved_files[file_name] = {
                     "file_path": dest_path,
                     "file_type": file_type,
-                    "display_time": display_time
+                    "display_time": display_time,
+                    "device_id": device_id
                 }
 
+        # temp_file = DISPLAY_JSON + '.tmp'
+        # with open(temp_file, 'w') as f:
+        #     json.dump(display_json, f)
+        # os.replace(temp_file, DISPLAY_JSON)
 
-        socketio.emit('new_file', {'files': selected_files})
+        # with open(DISPLAY_JSON, 'w') as f:
+        #     json.dump(display_json, f)
+
+
+        socketio.emit('new_file', {'files': new_display})
 
         response_data = {
             "status": "success",
@@ -148,21 +180,29 @@ def post_display_files():
 @app.route('/uploads/display', methods=['GET'])
 def get_display_files():
     try:
-        files = os.listdir(app.config['DISPLAY_FOLDER'])
-        file_info = []
+        with open(DISPLAY_JSON, 'r') as f:
+            display_json = json.load(f)
 
-        for file in files:
-            # file_path = os.path.join(app.config['DISPLAY_FOLDER'], file)
-            file_type, _ = mimetypes.guess_type(file) 
+        print(display_json)
+
+        file_info = []
+        for file in display_json:
+            file_name = file.get('fileName')
+            file_path = f"/uploads/display/{file_name}"
+            file_type, _ = mimetypes.guess_type(file_path)
+            
             file_info.append({
-                "file_name": file,
-                "file_path": f"/uploads/display/{file}",
-                "file_type": file_type
+                "file_name": file_name,
+                "file_path": file_path,
+                "file_type": file_type,
+                "timestamp": file.get('displayTime'),
+                "device_id": file.get('deviceId')
             })
 
         return jsonify(file_info), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
     
 @app.route('/uploads/display/<filename>', methods=['GET'])
 def serve_display_file(filename):
@@ -208,12 +248,89 @@ def get_logs():
         return jsonify(logs_json), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/devices', methods=['POST'])
+def post_device():
+    try:
+        
+        with open(DEVICES_JSON, 'r') as f:
+            devices_json = json.load(f)
+
+        new_device = request.json
+
+        if new_device and not any(device['id'] == new_device['id'] for device in devices_json):
+            devices_json.append(new_device)
 
 
+        temp_file = DEVICES_JSON + '.tmp'
+        with open(temp_file, 'w') as f:
+            json.dump(devices_json, f)
+        os.replace(temp_file, DEVICES_JSON)
+
+        
+        socketio.emit('new_device', {'devices': new_device})
+
+        response_data = {
+            "status": "success",
+            "saved_files": new_device
+        }
+        
+        return jsonify(response_data), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/devices', methods=['GET'])
+def get_devices():
+    try:
+        with open(DEVICES_JSON, 'r') as f:
+            devices_json = json.load(f)
+
+        return jsonify(devices_json), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/frames', methods=['POST'])
+def post_frames():
+    try:
+        with open(FRAMES_JSON, 'r') as f:
+            frames_json = json.load(f)
+
+        new_frame = request.json
+        if new_frame:
+            frames_json.append(new_frame)
+
+        temp_file = FRAMES_JSON + '.tmp'
+        with open(temp_file, 'w') as f:
+            json.dump(frames_json, f)
+        os.replace(temp_file, FRAMES_JSON)
+
+        with open(FRAMES_JSON, 'w') as f:
+            json.dump(frames_json, f)
+
+        socketio.emit('new_frame', {'frames': new_frame})
+
+        response_data = {
+            "status": "success",
+            "saved_files": new_frame
+        }
+        return jsonify(response_data), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/frames', methods=['GET'])
+def get_frames():
+    try:
+        with open(FRAMES_JSON, 'r') as f:
+            frames_json = json.load(f)
+
+        return jsonify(frames_json), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
 @app.route('/')
 def index():
-    return "<a href='/uploads'>http://127.0.0.1:5000/uploads</a><br><a href='/uploads/display'>http://127.0.0.1:5000/uploads/display</a><br><a href='/logs'>http://127.0.0.1:5000/logs</a>"
+    return "<a href='/uploads'>http://127.0.0.1:5000/uploads</a><br><a href='/uploads/display'>http://127.0.0.1:5000/uploads/display</a><br><a href='/logs'>http://127.0.0.1:5000/logs</a><br><a href='/devices'>http://127.0.0.1:5000/devices</a"
 
 if __name__ == '__main__':
     # app.run(host='0.0.0.0', port=5000)
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000,debug=True)
